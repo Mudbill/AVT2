@@ -1,0 +1,97 @@
+/**
+* Stop a running animation.
+* asName - The name of the animation playing (file prefix)
+* abRemove - Whether the animation should remain in place at the stopped frame, or be removed.
+*/
+void StopImageAnimation(string asName, bool abRemove) {
+	SetLocalVarInt("_anim_stop_"+asName, abRemove ? 2 : 1);
+}
+
+/**
+* Loops through a series of images at the specified intervals.
+* asName - The name of the [name]_0.ent part of the files.
+* asArea - The script area in the level to play the animation at.
+* frameAmount - Total number of frames to play.
+* fps - The frames per second (speed) of the animation. Only 1-60 valid.
+* abLoop - Whether this animation shall loop.
+*/
+void StartImageAnimation(string asName, string asArea, string asFromArea, int frameAmount, int fps, bool abLoop) {
+ 
+    /* Setup unique variables to store the settings. */
+	SetLocalVarInt("_anim_stop_"+asName, 0);
+    SetLocalVarString("_anim_area_"+asName, asArea);
+    SetLocalVarString("_anim_areafrom_"+asName, asFromArea);
+    SetLocalVarInt("_anim_fps_"+asName, fps > 60 ? 60 : (fps < 1 ? 1 : fps)); // Limit FPS value range to 1-60
+    SetLocalVarInt("_anim_frames_"+asName, frameAmount);
+	SetLocalVarInt("_anim_loop_"+asName, abLoop ? 1 : 0);
+   
+    /* Used to count which frame is currently played. */
+    SetLocalVarInt("_anim_currentframe_"+asName, 0);
+   
+    /* Call the timer which will render the frames. */
+    _anim_PlayFrame(asName);
+}
+
+/**
+* Loads all the video frames into the game. Must be called before the animation can be played
+* asName - The name of the prefix part of the files.
+* asArea - The name of the script area to place the files at (out of bounds)
+* frameAmount - The number of frames to load.
+*/
+void PreloadAnimation(string asName, string asArea, int frameAmount) {
+	for(int i = 0; i < frameAmount; i++) {
+		CreateEntityAtArea(
+			"_anim_ent_"+asName+i,
+			asName+i+".ent",
+			asArea,
+			false
+		);
+	}
+}
+
+void _anim_PlayFrame(string asName) {
+	int frame = GetLocalVarInt("_anim_currentframe_"+asName);
+	int lastFrame = frame - 1;
+
+	// Move away previous frame.
+	if(frame > 0) {
+		PlaceEntityAtEntity(
+			"_anim_ent_"+asName+lastFrame,
+			GetLocalVarString("_anim_areafrom_"+asName),
+			"",
+			true
+		);
+	}
+	
+	if(frame < GetLocalVarInt("_anim_frames_"+asName)) {
+		AddDebugMessage("Playing frame: "+frame, false);
+		
+		if(GetLocalVarInt("_anim_stop_"+asName) != 2) {
+			// Insert current frame.
+			PlaceEntityAtEntity(
+				"_anim_ent_"+asName+frame,
+				GetLocalVarString("_anim_area_"+asName),
+				"",
+				true
+			);
+		}
+		
+		// Increment counter.
+		AddLocalVarInt("_anim_currentframe_"+asName, 1);
+		
+		if(GetLocalVarInt("_anim_stop_"+asName) == 0) {
+			// Add next timer
+			AddTimer(
+				asName,
+				1.0f/GetLocalVarInt("_anim_fps_"+asName),
+				"_anim_PlayFrame"
+			);
+		}
+	} else {
+		if(GetLocalVarInt("_anim_loop_"+asName) == 1) {
+			SetLocalVarInt("_anim_currentframe_"+asName, 0);
+			_anim_PlayFrame(asName);
+			return;
+		}
+	}
+}
